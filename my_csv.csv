@@ -1,0 +1,8 @@
+Activity,Predecessors,Duration,Event_Start,Event_End
+A, ,10,1,2
+B,A,9,2,3
+C,A,6,2,4
+D,B,7,3,4
+E,B,5,3,5
+F,CD,9,4,5
+G,EF,8,5,6
