@@ -2,7 +2,7 @@ from graphviz import Digraph
 import csv
 import pandas as pd
 from criticalpath import Node
-
+from tkinter import *
 #Class representing an activity
 class activity:
 
@@ -22,22 +22,7 @@ class activity:
 		self.LS = 0
 		self.LF = 0
 		self.TF = 0
-		self.FF = 0
-		self.IDF = 0
-		self.ITF = 0
 
-class Event:
-	def __init__(self, index):
-		self.node_num = index
-		self.successors = []
-		self.EST = 0
-		self.LFT = 0
-		self.slack_time = 0
-
-	def get_successor_node(self, duration, successor):
-		self.successors.append([duration, successor])
-
-	
 
 #Getting the activities
 def get_activities():
@@ -56,7 +41,7 @@ def get_graph_attribs(activities):
 	nodes = set()
 	edges = []
 	for activity in activities:
-		label = activity.activity_name + " , " + str(activity.duration)
+		label = activity.activity_name + " [ " + str(activity.ES) + "," + str(activity.LF) + " ] "
 		edges.append((activity.start_event,activity.end_event,label))
 		nodes.add(int(activity.start_event))
 		nodes.add(int(activity.end_event))
@@ -84,7 +69,18 @@ def getMaxPrevEF(activities, predecessors):
 	return max_val
 
 
-def display_table(activities):
+
+def get_freefloat_time(activity, nodes_list):
+
+	for node in nodes_list:
+		if str(node[0]) == str(activity.end_event):
+			head_slack = abs(node[1]-node[2])
+		elif str(node[0]) == str(activity.start_event):
+			tail_slack = abs(node[1]-node[2])
+	return int(head_slack), int(tail_slack)
+
+
+def display_table(activities, nodes_list):
 	print("------------------------------------------------------------------------\n")
 	df = pd.read_csv('my_csv.csv')
 	df.insert(5,'ES', 0)
@@ -92,9 +88,6 @@ def display_table(activities):
 	df.insert(7,'LS', 0)
 	df.insert(8,'LF', 0)
 	df.insert(9, 'TF', 0)
-	df.insert(10, 'FF', 0)
-	df.insert(11, 'IDF', 0)
-	df.insert(12, 'ITF', 0)
 	for i in range(len(activities)):
 		df.loc[df.index[i], 'Activity'] = activities[i].activity_name
 		df.loc[df.index[i], 'Predecessors'] = activities[i].predecessors_string
@@ -105,10 +98,6 @@ def display_table(activities):
 		df.loc[df.index[i], 'LF'] = activities[i].LF
 		activities[i].TF = activities[i].LF - activities[i].EF
 		df.loc[df.index[i], 'TF'] = activities[i].TF
-		df.loc[df.index[i], 'FF'] = activities[i].FF
-		df.loc[df.index[i], 'IDF'] = activities[i].IDF
-		activities[i].ITF = activities[i].TF - activities[i].FF
-		df.loc[df.index[i], 'ITF'] = activities[i].ITF
 		
 	print(df)
 	df.to_csv('result.csv')
@@ -141,6 +130,17 @@ def get_critical_path(activities, nodes, edges):
 	print("Critical Path Duration = ", p.duration)
 	return p.get_critical_path(), p.duration
 
+def solution(CP,CP_duration):
+	root = Tk()
+	T = Text(root, height=2, width=30)
+	T.pack()
+	CP.append("Total Duration:")
+	CP.append(CP_duration)
+	T.insert(END, CP)
+	mainloop()	
+	
+
+
 
 if __name__ == '__main__':
 	
@@ -150,11 +150,6 @@ if __name__ == '__main__':
 
 	for i in range(n):
 		activities.append(activity(data, i))
-
-	'''	
-	STEP 1:
-	CALCULATION OF EST AT EACH NODE STARTING FROM FIRST NODE
-	'''
 
 	for i in range(n):
 		if activities[i].no_of_predecessors == 0:
@@ -166,130 +161,50 @@ if __name__ == '__main__':
 
 	last_value = activities[n-1].EF
 	nodes, edges = get_graph_attribs(activities)
-	
-	nodes_list = [[nodes[0], 0, 0, -1]]
 
 
+	#Calculate the ES from the first node and put them in the left box
+	nodes_list = [[nodes[0], 0, 0]]
 	for i in range(1, len(nodes)):
-	 	max = 0
-	 	for act in activities:
-	 		if (int(act.end_event) == int(nodes[i])):
-				
-	 			if(act.ES + act.duration > max):
-	 				max = act.ES + act.duration
-	 	nodes_list.append([nodes[i], max, 0, -1])
-
-
-	no_of_nodes = len(nodes)
-
-
-	_nodes = []
-	for i in range(no_of_nodes):
-		_nodes.append(Event(i+1))
-
-	for node in _nodes:
+		max = 0
 		for act in activities:
-			if str(act.start_event) == str(node.node_num):
-				node.get_successor_node(act.duration, act.end_event)
+			if (int(act.end_event) == int(nodes[i])):
+				
+				if(act.ES + act.duration > max):
+					max = act.ES + act.duration
+		nodes_list.append([nodes[i], max, max])
 
-	for i in range(len(nodes)):
-	 	_nodes[i].EST = nodes_list[i][1]
 
-	'''	
-	STEP 2:
-	IDENTIFICATION OF THE CRITICAL PATH
 	'''
+	for i in range(n-1, -1, -1):
+		if int(activities[i].end_event) == len(nodes):
+			activities[i].LF = last_value
+			
+		else:
+			min_value = 100000000
+			for j in range(i+1, n):
+				if activities[j].start_event == activities[i].end_event:
+					if activities[j].ES < min_value:
+						min_value = activities[j].ES
+			activities[i].LF = min_value
 
+		activities[i].LS = activities[i].LF - activities[i].duration
+	'''
 	CP, CP_duration = get_critical_path(activities, nodes, edges)
 	CP = [str(cp) for cp in CP]
+	print(CP)
 	
-
-	'''
-	STEP 3:
-	CALCULATION OF LFT AT EACH NODE STARTING FROM THE LAST NODE
-	'''
-	for act in activities:
-	 	if str(act.activity_name) in CP:
-	 		for node in nodes_list:
-	 			if str(act.start_event) == str(node[0]):
-	 				node[2] = node[1]
-	 				node[3] = 1
-	 			if str(act.end_event) == str(node[0]):
-	 				node[2] = node[1]
-	 				node[3] = 1
-
-
 	node_num = 1
 	for act in activities:
-	 	for node in nodes_list:
-	 		if str(act.end_event) == str(node[0]):
-	 			act.LF = node[2]
-	 			act.LS = act.LF - act.duration
-	 			break
-
-	for i in range(len(activities)-1, -1, -1):
-	 	for j in range(len(nodes_list)-1, 0, -1):
-	 		if (nodes_list[j][3] == -1) and (str(nodes_list[j][0]) == str(activities[i].end_event)):
-	 			
-	 			for act in activities:
-	 				if str(nodes_list[j][1]) == str(act.ES):
-	 					if str(activities[i].activity_name) in act.predecessors:
-	 						
-	 						activities[i].LF = act.LS
-	 						break
-
-	_nodes[-1].LFT = _nodes[-1].EST
-
-	for i in range(len(nodes)-2, -1, -1):
-		min_val = 100000000
-		succ_nodes = []
-		duration_vals = []
-		for succ in _nodes[i].successors:
-			succ_nodes.append(int(succ[1]))
-			duration_vals.append(int(succ[0]))
-		for j in range(len(nodes)-1, -1, -1):
-			for k in range(len(succ_nodes)-1, -1, -1):
-				if _nodes[j].node_num == succ_nodes[k]:
-					val = _nodes[j].LFT - duration_vals[k]
-					if val < min_val:
-						min_val = val
-		_nodes[i].LFT = min_val
+		for node in nodes_list:
+			if str(act.end_event) == str(node[0]):
+				act.LF = node[2]
+				act.LS = act.LF - act.duration
+				break
 	
-	for node in _nodes:
-		node.slack_time = abs(node.EST - node.LFT)	
-
-
-	for act in activities:
-		for node in _nodes:
-			if str(node.node_num) == str(act.start_event):
-				act.ES = node.EST
-			if str(node.node_num) == str(act.end_event):
-				act.LF = node.LFT
-		act.EF = act.ES + act.duration
-		act.LS = act.LF - act.duration
-
-
-	for act in activities:
-		for node in _nodes:
-			if str(node.node_num) == str(act.start_event):
-				x = act.FF - node.slack_time
-				if x < 0:
-					act.IDF = 0
-				else:
-					act.IDF = x
-
-			if str(node.node_num) == str(act.end_event):
-				x = act.TF - node.slack_time
-				if x < 0:
-					act.FF = 0
-				else:
-					act.FF = x
-	
-	for act in activities:
-		act.ITF = act.TF - act.FF
-
-
 	nodes, edges = get_graph_attribs(activities)
-	
-	display_table(activities)
+	display_table(activities, nodes_list)
 	plot_graph(nodes, edges)
+	solution(CP,CP_duration)
+
+	
